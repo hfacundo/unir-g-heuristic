@@ -55,25 +55,39 @@ public class Main {
         main.startRobot(matrix);
     }
 
+    /**
+     * Inicializa el camino del robot hacia los inventarios y a sus destinos
+     *
+     * @param matrix - Matriz inicial
+     */
     public void startRobot(String[][] matrix) {
         Queue<Inventory> inventoryQueue = new PriorityQueue<>(Comparator.comparingInt(Inventory::getDistance));
         // posición inicial del robot
         int[] robotXY = new int[] {2, 2};
 
+        // Inicializa los inventarios con sus respectivas coordenadas iniciales y finales
         initializeInventory(inventoryQueue, robotXY);
         int sum = 0;
 
+        // El Queue contiene los 3 inventarios ordenados por prioridad, aquel con menor distancia de Manhattan será elegido primero
         while (!inventoryQueue.isEmpty()) {
+            // Elige el inventario con menor distancia y lo elimina de la lista para evitar que vuelva a ser procesado
             Inventory currentInventory = inventoryQueue.poll();
+            // Obtengo las coordenadas x, y del inventario actual para facilitar la comprensión del código
             int x = currentInventory.getTargetXY()[0];
             int y = currentInventory.getTargetXY()[1];
 
+            // Busca el camino desde las coordenadas del robot hacia las coordenadas del inventario
             Node robotToInventory = findInventory(matrix, currentInventory.getRobotXY(), currentInventory.getStartXY());
+            // Imprime la primera parte del recorrido, desde la posición inicial del robot hasta la posición del inventario
             print(robotToInventory, true, currentInventory.getName(), currentInventory.getRobotXY());
 
+            // En este punto ya estamos en las coordenadas del inventario, ahora toca buscar el camino hacia el destino
             Node inventoryToTarget = findInventory(matrix, currentInventory.getStartXY(), currentInventory.getTargetXY());
+            // Imprime la segunda parte del recorrido, desde la posición inicial del inventario hasta su posición final
             print(inventoryToTarget, false, currentInventory.getName(), currentInventory.getStartXY());
 
+            // Cuento el total de movimientos realizados por el robot
             int totalMoves = (robotToInventory.getCost() + inventoryToTarget.getCost()) / 2;
             sum += totalMoves;
             System.out.println(String.format("Movimientos totales: %d\n", totalMoves));
@@ -90,11 +104,23 @@ public class Main {
 
     }
 
+    /**
+     * Recalcula la distancia de Manhattan para los inventarios restantes dentro del queue, esto debido a que una vez movido un inventario
+     * a su posición final, este ahora tiene nuevas coordenadas y el orden de prioridad previamente guardado podría no ser el correcto.
+     *
+     * En los inventarios restantes se calcula la distancia de Manhattan para que se vuelvan a ordenar según la distancia mínima.
+     *
+     * @param inventoryQueue - Queue que contiene los inventarios
+     * @param newRobotXY - Las nuevas coordenadas del robot después de haber movido un inventario a su posición final
+     * @return Queue ordenado por su distancia de Manhattan
+     */
     private static Queue<Inventory> recalculateManhattanDistance(Queue<Inventory> inventoryQueue, int[] newRobotXY) {
-
+        // Si el queue está vacío no tiene caso continuar
         if (inventoryQueue.isEmpty())
             return inventoryQueue;
 
+        // Debido a que al actualizar un PriorityQueue éste no ordena de manera automática los elementos existentes crearé un nuevo
+        // PriorityQueue donde añadiré nuevos elementos, después reemplazaré el anterior por éste
         Queue<Inventory> updatedQueue = new PriorityQueue<>(Comparator.comparingInt(Inventory::getDistance));
 
         System.out.println("Recalculando Heurística... \n");
@@ -160,20 +186,24 @@ public class Main {
             Node currentNode = queue.poll();
             int[] currentXY = currentNode.getXy();
 
+            // Valido si el elemento actual es el que estoy buscando
             if (Arrays.equals(currentXY, targetXY)) {
                 // encontramos el objetivo
                 return currentNode;
             }
 
-            // ya que este no es el objetivo lo marcamos como visitado
+            // Ya que este no es el objetivo lo marcamos como visitado
             visited.add(currentNode);
 
-            // Ahora debemos buscar en todas direcciones (arriba, abajo, izquierda y derecha) para calcular la distancia de Manhattan
+            // Simulo los movimientos necesarios en x, y para moverme hacia todas direcciones
             int[][] directions = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}}; // arriba, abajo, izquierda, derecha
 
+            // Ahora debemos buscar en todas direcciones (arriba, abajo, izquierda y derecha) para calcular la distancia de Manhattan
             for (int[] direction : directions) {
                 int[] newXY = new int[] {currentXY[0] + direction[0], currentXY[1] + direction[1]};
 
+                // Si las coordenadas x, y son válidas, es decir que están dentro de la matriz y siempre y cuando no hayan sido
+                // visitadas previamente, crearé un nuevo elemento y lo añadiré a mi queue para seguir buscando
                 if (isValid(newXY, matrix) && !isPresent(visited, newXY)) {
                     int newCost = currentNode.getCost() + 1;
                     int newHeuristic = manhattanDistance(newXY, targetXY);
@@ -185,16 +215,18 @@ public class Main {
 
         }
 
-        // No se encontró camino
+        // Si llegamos a este punto es porque no se encontró camino
         return null;
     }
 
+    // Valido que x, y sean coordenadas válidas dentro de la matriz
     private boolean isValid(int[] xy, String[][] matrix) {
         int x = xy[0];
         int y = xy[1];
         return x >= 0 && x < matrix.length && y >= 0 && y < matrix[0].length && !matrix[x][y].equals("#");
     }
 
+    // Valido que las coordenadas x, y no hayan sido visitadas antes, esto evita que entre en un ciclo infinito
     private static boolean isPresent(Set<Node> visited, int[] xy) {
         for (Node node : visited) {
             if (Arrays.equals(node.getXy(), xy))
@@ -218,6 +250,13 @@ public class Main {
         return Math.abs(x1 - x2) + Math.abs(y1 - y2);
     }
 
+    /**
+     *
+     * @param result - Es el nodo obtenido después de encontrar mi objetivo, contiene todo el camino recorrido desde una posición inicial
+     * @param lift - Indica si el inventario debe ser levantado o puesto en su lugar de destino
+     * @param name - El nombre del inventario (M1, M2, M3)
+     * @param originalRobotXY - La posición original del robot
+     */
     private static void print(Node result, boolean lift, String name, int[] originalRobotXY) {
         if (result == null) {
             System.out.println("Camino no encontrado");
